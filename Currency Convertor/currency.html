@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Currency Converter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <div class="card">
+    <img src="https://th.bing.com/th/id/R.ec26cd119294ccc36b2d062f2aca9d96?rik=ekdsggV0uKTGNw&riu=http%3a%2f%2fwww.clipartbest.com%2fcliparts%2fncB%2fR4g%2fncBR4gLji.png&ehk=LlypPc7sxhDxLqWXRreMWv%2fqaOcWwDk%2fEDfKLmMvmPI%3d&risl=&pid=ImgRaw&r=0">
+    <h2>Currency Converter</h2>
+
+    <label for="amount">Amount:</label>
+    <input type="number" id="amount" value="1" min="0" step="any">
+
+    <label for="from">From:</label>
+    <select id="from">
+      <option value="USD">USD - United States</option>
+      <option value="EUR">EUR - Europe</option>
+      <option value="GBP">GBP - United Kingdom</option>
+      <option value="INR">INR - India</option>
+      <option value="JPY">JPY - Japan</option>
+    </select>
+
+    <label for="to">To:</label>
+    <select id="to">
+      <option value="INR">INR - India</option>
+      <option value="EUR">EUR - Europe</option>
+      <option value="USD">USD - United States</option>
+      <option value="GBP">GBP - United Kingdom</option>
+      <option value="JPY">JPY - Japan</option>
+    </select>
+
+    <div class="controls">
+      <button id="convert">Convert</button>
+    </div>
+
+    <div class="result" id="result">—</div>
+  </div>
+</body>
+  <script src="script.js"></script>
+</html>
+</body>
+</html>
