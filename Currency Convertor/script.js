@@ -22,7 +22,6 @@ function formatCurrency(amount, currency) {
 function convertAndShow() {
   const amount = parseFloat(amountInput.value);
   
-  // If invalid or empty, show placeholder
   if (isNaN(amount) || amountInput.value === '') { 
     resultDiv.innerHTML = '<span class="placeholder-text">Enter amount to see result</span>';
     resultDiv.classList.remove('has-result');
@@ -37,7 +36,6 @@ function convertAndShow() {
 
   const converted = amount * (toRate / fromRate);
 
-  // UX Improvement: Better formatting
   resultDiv.classList.add('has-result');
   resultDiv.innerHTML = `
     <div class="result-text">
@@ -47,27 +45,20 @@ function convertAndShow() {
   `;
 }
 
-// Event Listeners
 amountInput.addEventListener('input', convertAndShow);
 fromSelect.addEventListener('change', convertAndShow);
 toSelect.addEventListener('change', convertAndShow);
 
-// Swap Functionality
 swapBtn.addEventListener('click', () => {
     const temp = fromSelect.value;
     fromSelect.value = toSelect.value;
     toSelect.value = temp;
-    
-    // Add a little rotation animation effect via CSS class toggling if desired, 
-    // or just rely on the immediate update
     convertAndShow();
 });
 
-// Prevent form submission if user hits enter
 document.getElementById('convert').addEventListener('click', function(e){ 
     e.preventDefault(); 
     convertAndShow(); 
 });
 
-// Initial call
 convertAndShow();
