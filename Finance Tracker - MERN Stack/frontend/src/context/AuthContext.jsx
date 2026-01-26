@@ -12,14 +12,37 @@ export const useAuth = () => {
     return context;
 };
 
+const getStoredUser = () => {
+    try {
+        const stored = localStorage.getItem('user');
+        return stored ? JSON.parse(stored) : null;
+    } catch {
+        return null;
+    }
+};
+
+const getRoleFromToken = (token) => {
+    try {
+        const decoded = jwtDecode(token);
+        return decoded.role || 'user';
+    } catch {
+        return 'user';
+    }
+};
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(localStorage.getItem('token'));
-    const [loading, setLoading] = useState(true);
+    const storedToken = localStorage.getItem('token');
+    const storedUser = getStoredUser();
+
+    const [user, setUser] = useState(storedUser);
+    const [token, setToken] = useState(storedToken);
+    const [loading, setLoading] = useState(!!storedToken);
 
     useEffect(() => {
-        if (token) {
+        if (token && !user) {
             loadUser();
+        } else if (token && user) {
+            setLoading(false);
         } else {
             setLoading(false);
         }
@@ -27,16 +50,17 @@ export const AuthProvider = ({ children }) => {
 
     const loadUser = async () => {
         try {
-            const decoded = jwtDecode(token);
             const res = await api.get('/api/auth/user');
-            setUser({
-                id: res.data.id,
+            const tokenRole = getRoleFromToken(token);
+            const userData = {
+                id: res.data.id || res.data._id,
                 name: res.data.name,
                 email: res.data.email,
-                role: res.data.role || decoded.role || 'user'
-            });
+                role: res.data.role || tokenRole
+            };
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
         } catch (err) {
-            console.error('Error loading user:', err);
             logout();
         } finally {
             setLoading(false);
@@ -50,13 +74,19 @@ export const AuthProvider = ({ children }) => {
         const res = await api.post('/api/auth/login', { email, password });
         const { token: newToken, user: userData } = res.data;
 
+        const tokenRole = getRoleFromToken(newToken);
+        const userWithRole = {
+            ...userData,
+            role: userData.role || tokenRole
+        };
+
         localStorage.setItem('token', newToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(userWithRole));
 
         setToken(newToken);
-        setUser(userData);
+        setUser(userWithRole);
 
-        return res.data;
+        return { ...res.data, user: userWithRole };
     };
 
     const register = async (name, email, password) => {
