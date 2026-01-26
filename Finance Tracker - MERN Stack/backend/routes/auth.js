@@ -11,25 +11,31 @@ router.post('/register', async (req, res) => {
 
         if (!name || !email || !password) {
             return res.status(400).json({
+                success: false,
                 message: 'Please provide name, email, and password'
             });
         }
 
         let user = await User.findOne({ email });
         if (user) {
-            return res.status(400).json({ message: 'User already exists' });
+            return res.status(400).json({ success: false, message: 'User already exists' });
         }
 
         user = new User({ name, email, password });
         await user.save();
 
         const token = jwt.sign(
-            { id: user._id },
+            {
+                id: user._id,
+                email: user.email,
+                role: user.role
+            },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
         res.status(201).json({
+            success: true,
             token,
             user: {
                 id: user._id,
@@ -39,7 +45,7 @@ router.post('/register', async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
@@ -49,24 +55,29 @@ router.post('/login', async (req, res) => {
 
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
 
         const isMatch = await user.comparePassword(password);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
 
         user.lastLogin = new Date();
         await user.save();
 
         const token = jwt.sign(
-            { id: user._id },
+            {
+                id: user._id,
+                email: user.email,
+                role: user.role
+            },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
         res.json({
+            success: true,
             token,
             user: {
                 id: user._id,
@@ -76,16 +87,21 @@ router.post('/login', async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
 router.get('/user', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
-        res.json(user);
+        res.json({
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role
+        });
     } catch (err) {
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 

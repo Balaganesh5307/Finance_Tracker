@@ -8,6 +8,8 @@ const Navbar = () => {
     const { isDark, toggleTheme } = useTheme();
     const location = useLocation();
 
+    const isAdmin = user?.role === 'admin';
+
     return (
         <nav className="navbar">
             <div className="navbar-container">
@@ -19,21 +21,7 @@ const Navbar = () => {
                 {isAuthenticated && (
                     <>
                         <div className="navbar-links">
-                            <Link
-                                to="/dashboard"
-                                className={`navbar-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
-                            >
-                                <FiPieChart />
-                                <span>Dashboard</span>
-                            </Link>
-                            <Link
-                                to="/transactions"
-                                className={`navbar-link ${location.pathname === '/transactions' ? 'active' : ''}`}
-                            >
-                                <FiList />
-                                <span>Transactions</span>
-                            </Link>
-                            {user?.role === 'admin' && (
+                            {isAdmin ? (
                                 <Link
                                     to="/admin"
                                     className={`navbar-link ${location.pathname === '/admin' ? 'active' : ''}`}
@@ -41,6 +29,23 @@ const Navbar = () => {
                                     <FiShield />
                                     <span>Admin</span>
                                 </Link>
+                            ) : (
+                                <>
+                                    <Link
+                                        to="/dashboard"
+                                        className={`navbar-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
+                                    >
+                                        <FiPieChart />
+                                        <span>Dashboard</span>
+                                    </Link>
+                                    <Link
+                                        to="/transactions"
+                                        className={`navbar-link ${location.pathname === '/transactions' ? 'active' : ''}`}
+                                    >
+                                        <FiList />
+                                        <span>Transactions</span>
+                                    </Link>
+                                </>
                             )}
                         </div>
 
@@ -48,7 +53,10 @@ const Navbar = () => {
                             <button onClick={toggleTheme} className="btn-theme" title={isDark ? 'Light mode' : 'Dark mode'}>
                                 {isDark ? <FiSun /> : <FiMoon />}
                             </button>
-                            <span className="user-name">Hello, {user?.name}</span>
+                            <span className="user-name">
+                                Hello, {user?.name}
+                                {isAdmin && <span className="admin-badge">Admin</span>}
+                            </span>
                             <button onClick={logout} className="btn-logout">
                                 <FiLogOut />
                             </button>
