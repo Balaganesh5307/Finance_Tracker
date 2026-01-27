@@ -1,17 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { FiPieChart, FiList, FiLogOut, FiDollarSign, FiSun, FiMoon, FiShield } from 'react-icons/fi';
+import { FiPieChart, FiList, FiLogOut, FiDollarSign, FiShield } from 'react-icons/fi';
 
 const Navbar = () => {
     const { user, logout, isAuthenticated } = useAuth();
-    const { isDark, toggleTheme } = useTheme();
     const location = useLocation();
 
     const isAdmin = user?.role === 'admin';
-
-    // DEBUG: Log to verify deployment and role
-    console.log('[NAVBAR v2] User:', user, 'isAdmin:', isAdmin, 'role:', user?.role);
 
     return (
         <nav className="navbar">
@@ -53,9 +48,6 @@ const Navbar = () => {
                         </div>
 
                         <div className="navbar-user">
-                            <button onClick={toggleTheme} className="btn-theme" title={isDark ? 'Light mode' : 'Dark mode'}>
-                                {isDark ? <FiSun /> : <FiMoon />}
-                            </button>
                             <span className="user-name">
                                 Hello, {user?.name}
                                 {isAdmin && <span className="admin-badge">ADMIN</span>}

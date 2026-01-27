@@ -11,6 +11,11 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+    // Force dark mode (night mode) for admin dashboard
+    useEffect(() => {
+        document.documentElement.classList.add('dark');
+    }, []);
+
     useEffect(() => {
         fetchData();
     }, []);

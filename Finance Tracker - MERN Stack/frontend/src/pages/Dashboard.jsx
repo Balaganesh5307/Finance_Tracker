@@ -17,6 +17,11 @@ const Dashboard = () => {
     const [editTransaction, setEditTransaction] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+    // Force light mode (day mode) for user dashboard
+    useEffect(() => {
+        document.documentElement.classList.remove('dark');
+    }, []);
+
     useEffect(() => {
         fetchTransactions();
     }, []);
