@@ -16,7 +16,7 @@ const Navbar = () => {
                     <span>FinanceTracker Pro</span>
                 </Link>
 
-                {isAuthenticated && (
+                {isAuthenticated ? (
                     <>
                         <div className="navbar-links">
                             {isAdmin ? (
@@ -57,6 +57,11 @@ const Navbar = () => {
                             </button>
                         </div>
                     </>
+                ) : (
+                    <div className="navbar-auth">
+                        <Link to="/login" className="btn-nav-login">Sign In</Link>
+                        <Link to="/register" className="btn-nav-register">Get Started</Link>
+                    </div>
                 )}
             </div>
         </nav>
