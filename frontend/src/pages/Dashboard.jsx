@@ -18,8 +18,8 @@ const Dashboard = () => {
     const [showForm, setShowForm] = useState(false);
     const [editTransaction, setEditTransaction] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-
-
+    const [showStartingBalanceModal, setShowStartingBalanceModal] = useState(false);
+    const [startingBalanceVal, setStartingBalanceVal] = useState('');
 
     const [announcement, setAnnouncement] = useState('');
 
@@ -39,11 +39,63 @@ const Dashboard = () => {
         try {
             const res = await api.get('/api/transactions');
             setTransactions(res.data);
+
+            // Check if Starting Balance has been set for the current calendar month
+            const now = new Date();
+            const startingBalanceTx = res.data.find(t => {
+                const tDate = new Date(t.date || t.createdAt);
+                return tDate.getMonth() === now.getMonth() &&
+                       tDate.getFullYear() === now.getFullYear() &&
+                       t.category === 'Starting Balance';
+            });
+            if (!startingBalanceTx) {
+                setShowStartingBalanceModal(true);
+            }
         } catch (err) {
             console.error(err);
             toast.error('Failed to load transactions');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSaveStartingBalance = async (e) => {
+        e.preventDefault();
+        try {
+            const now = new Date();
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            await api.post('/api/transactions', {
+                amount: parseFloat(startingBalanceVal) || 0,
+                type: 'income',
+                category: 'Starting Balance',
+                description: `Initial balance carryover for ${now.toLocaleDateString('en-US', { month: 'long' })}`,
+                date: firstDayOfMonth.toISOString()
+            });
+            toast.success('Starting balance saved!');
+            setShowStartingBalanceModal(false);
+            fetchTransactions();
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to save starting balance');
+        }
+    };
+
+    const handleSkipStartingBalance = async () => {
+        try {
+            const now = new Date();
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            await api.post('/api/transactions', {
+                amount: 0,
+                type: 'income',
+                category: 'Starting Balance',
+                description: `Skipped starting balance for ${now.toLocaleDateString('en-US', { month: 'long' })}`,
+                date: firstDayOfMonth.toISOString()
+            });
+            setShowStartingBalanceModal(false);
+            fetchTransactions();
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to skip starting balance');
         }
     };
 
@@ -428,6 +480,69 @@ const Dashboard = () => {
                                 Delete
                             </button>
                         </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {showStartingBalanceModal && (
+                <div className="modal-overlay">
+                    <motion.div
+                        className="modal"
+                        style={{ maxWidth: '400px', padding: '2rem', textAlign: 'center' }}
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                    >
+                        <div style={{
+                            width: '56px',
+                            height: '56px',
+                            borderRadius: '50%',
+                            background: 'rgba(99, 102, 241, 0.12)',
+                            color: '#6366f1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 1.5rem',
+                            fontSize: '1.5rem'
+                        }}>
+                            <FiDollarSign />
+                        </div>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                            Welcome to {new Date().toLocaleDateString('en-US', { month: 'long' })}!
+                        </h2>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                            Please set up your starting balance for this month to ensure accurate savings tracking.
+                        </p>
+                        <form onSubmit={handleSaveStartingBalance}>
+                            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                                <input
+                                    type="number"
+                                    className="form-input"
+                                    placeholder="Starting Balance"
+                                    value={startingBalanceVal}
+                                    onChange={(e) => setStartingBalanceVal(e.target.value)}
+                                    required
+                                    min="0"
+                                    style={{ textAlign: 'center', fontSize: '1.2rem', fontWeight: 700 }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={handleSkipStartingBalance}
+                                    style={{ flex: 1 }}
+                                >
+                                    Skip
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn"
+                                    style={{ flex: 1, background: 'var(--gradient-purple)', color: 'white' }}
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </form>
                     </motion.div>
                 </div>
             )}
