@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { FiX } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import ReceiptScanner from './ReceiptScanner';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Investment', 'Gift', 'Other'];
 const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Education', 'Other'];
 
 const TransactionForm = ({ transaction, onSubmit, onClose }) => {
+    const { user } = useAuth();
     const [formData, setFormData] = useState({
         type: 'expense',
         amount: '',
@@ -68,8 +71,22 @@ const TransactionForm = ({ transaction, onSubmit, onClose }) => {
                 </div>
 
                 <form onSubmit={handleSubmit}>
-                    <div className="modal-body">
+                    <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
                         {error && <div className="alert alert-error">{error}</div>}
+
+                        {!transaction && (
+                            <ReceiptScanner
+                                onScanComplete={(data) => {
+                                    setFormData({
+                                        type: data.type || 'expense',
+                                        amount: data.amount || '',
+                                        category: data.category || 'Other',
+                                        description: data.description || '',
+                                        date: data.date || new Date().toISOString().split('T')[0]
+                                    });
+                                }}
+                            />
+                        )}
 
                         <div className="form-group">
                             <label className="form-label">Type</label>
@@ -95,7 +112,16 @@ const TransactionForm = ({ transaction, onSubmit, onClose }) => {
 
                         <div className="form-row">
                             <div className="form-group">
-                                <label className="form-label">Amount (₹)</label>
+                                <label className="form-label">
+                                    Amount ({
+                                        user?.currency === 'USD' ? '$' :
+                                        user?.currency === 'GBP' ? '£' :
+                                        user?.currency === 'EUR' ? '€' :
+                                        user?.currency === 'JPY' ? '¥' :
+                                        user?.currency === 'CAD' ? '$' :
+                                        user?.currency === 'AUD' ? '$' : '₹'
+                                    })
+                                </label>
                                 <input
                                     type="number"
                                     name="amount"

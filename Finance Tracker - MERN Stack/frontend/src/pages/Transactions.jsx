@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import { FiPlus, FiFilter, FiDownload, FiFileText } from 'react-icons/fi';
 import TransactionItem from '../components/TransactionItem';
 import TransactionForm from '../components/TransactionForm';
 import SkeletonCard from '../components/SkeletonCard';
 
 const Transactions = () => {
+    const { formatCurrency } = useAuth();
     const [transactions, setTransactions] = useState([]);
     const [filteredTransactions, setFilteredTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -31,6 +33,7 @@ const Transactions = () => {
             const res = await api.get('/api/transactions');
             setTransactions(res.data);
         } catch (err) {
+            console.error(err);
             toast.error('Failed to load transactions');
         } finally {
             setLoading(false);
@@ -60,14 +63,28 @@ const Transactions = () => {
                 await api.put(`/api/transactions/${editTransaction._id}`, data);
                 toast.success('Transaction updated!');
             } else {
-                await api.post('/api/transactions', data);
-                toast.success('Transaction added!');
+                const res = await api.post('/api/transactions', data);
+                if (res.data.budgetAlert) {
+                    toast(res.data.budgetAlert, {
+                        icon: '⚠️',
+                        duration: 6000,
+                        style: {
+                            background: '#ffeaa7',
+                            color: '#d63031',
+                            border: '1px solid #fdcb6e',
+                            fontWeight: '600'
+                        }
+                    });
+                } else {
+                    toast.success('Transaction added!');
+                }
             }
             fetchTransactions();
             setShowForm(false);
             setEditTransaction(null);
         } catch (err) {
-            toast.error('Failed to save transaction');
+            console.error(err);
+            toast.error(err.response?.data?.message || 'Failed to save transaction');
         }
     };
 
@@ -87,20 +104,14 @@ const Transactions = () => {
                 toast.success('Transaction deleted!');
                 fetchTransactions();
             } catch (err) {
+                console.error(err);
                 toast.error('Failed to delete transaction');
             }
             setDeleteConfirm(null);
         }
     };
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+
 
     const exportToCSV = () => {
         const headers = ['Date', 'Type', 'Category', 'Description', 'Amount'];

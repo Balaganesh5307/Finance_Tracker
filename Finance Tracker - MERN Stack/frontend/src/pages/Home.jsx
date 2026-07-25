@@ -20,12 +20,6 @@ const Home = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
-    useEffect(() => {
-        if (isAuthenticated) {
-            navigate('/dashboard', { replace: true });
-        }
-    }, [isAuthenticated, navigate]);
-
     const fadeUp = {
         hidden: { opacity: 0, y: 40 },
         visible: (i = 0) => ({
@@ -78,7 +72,6 @@ const Home = () => {
         { num: '03', title: 'Get Insights', desc: 'Visualize your spending patterns and save more.' }
     ];
 
-    if (isAuthenticated) return null;
 
     return (
         <div className="landing-page">
@@ -110,13 +103,22 @@ const Home = () => {
                     </motion.p>
 
                     <motion.div className="hero-actions" variants={fadeUp} custom={3}>
-                        <Link to="/register" className="btn-hero-primary">
-                            Get Started Free
-                            <FiArrowRight />
-                        </Link>
-                        <Link to="/login" className="btn-hero-secondary">
-                            Sign In
-                        </Link>
+                        {isAuthenticated ? (
+                            <Link to="/dashboard" className="btn-hero-primary">
+                                Go to Dashboard
+                                <FiArrowRight />
+                            </Link>
+                        ) : (
+                            <>
+                                <Link to="/register" className="btn-hero-primary">
+                                    Get Started Free
+                                    <FiArrowRight />
+                                </Link>
+                                <Link to="/login" className="btn-hero-secondary">
+                                    Sign In
+                                </Link>
+                            </>
+                        )}
                     </motion.div>
 
                     <motion.div className="hero-trust" variants={fadeUp} custom={4}>

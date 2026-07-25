@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import { FiDollarSign, FiTrendingUp, FiTrendingDown, FiPlus } from 'react-icons/fi';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
 import TransactionItem from '../components/TransactionItem';
@@ -11,26 +12,35 @@ import SkeletonCard from '../components/SkeletonCard';
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
 const Dashboard = () => {
+    const { formatCurrency } = useAuth();
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editTransaction, setEditTransaction] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-    // Force light mode (day mode) for user dashboard
-    useEffect(() => {
-        document.documentElement.classList.remove('dark');
-    }, []);
+
+
+    const [announcement, setAnnouncement] = useState('');
 
     useEffect(() => {
         fetchTransactions();
+        fetchAnnouncement();
     }, []);
+
+    const fetchAnnouncement = async () => {
+        try {
+            const res = await api.get('/api/auth/announcement');
+            setAnnouncement(res.data.message || '');
+        } catch (err) {}
+    };
 
     const fetchTransactions = async () => {
         try {
             const res = await api.get('/api/transactions');
             setTransactions(res.data);
         } catch (err) {
+            console.error(err);
             toast.error('Failed to load transactions');
         } finally {
             setLoading(false);
@@ -50,7 +60,8 @@ const Dashboard = () => {
             setShowForm(false);
             setEditTransaction(null);
         } catch (err) {
-            toast.error('Failed to save transaction');
+            console.error(err);
+            toast.error(err.response?.data?.message || 'Failed to save transaction');
         }
     };
 
@@ -70,23 +81,30 @@ const Dashboard = () => {
                 toast.success('Transaction deleted!');
                 fetchTransactions();
             } catch (err) {
+                console.error(err);
                 toast.error('Failed to delete transaction');
             }
             setDeleteConfirm(null);
         }
     };
 
-    const totalIncome = transactions
+    const now = new Date();
+    const currentMonthTransactions = transactions.filter(t => {
+        const tDate = new Date(t.date || t.createdAt);
+        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+    });
+
+    const totalIncome = currentMonthTransactions
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    const totalExpense = transactions
+    const totalExpense = currentMonthTransactions
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
 
     const balance = totalIncome - totalExpense;
 
-    const expenseByCategory = transactions
+    const expenseByCategory = currentMonthTransactions
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => {
             acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -159,14 +177,7 @@ const Dashboard = () => {
 
     const monthlyChange = getMonthlyComparison();
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+
 
     const recentTransactions = transactions.slice(0, 5);
 
@@ -211,6 +222,25 @@ const Dashboard = () => {
             initial="hidden"
             animate="visible"
         >
+            {announcement && (
+                <div style={{
+                    background: 'linear-gradient(90deg, var(--accent-purple), var(--accent-blue))',
+                    color: '#fff',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '1.5rem',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    boxShadow: '0 4px 15px rgba(108,92,231,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
+                    <span>📢</span>
+                    <span>{announcement}</span>
+                </div>
+            )}
+
             <div className="summary-cards">
                 <motion.div className="card summary-card balance" variants={itemVariants}>
                     <div className="card-header">
@@ -288,18 +318,16 @@ const Dashboard = () => {
                     {pieData.length > 0 && (
                         <motion.div className="card chart-card" variants={itemVariants}>
                             <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>Expenses by Category</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <PieChart margin={{ top: 0, right: 30, bottom: 30, left: 80 }}>
+                            <ResponsiveContainer width="100%" height={280}>
+                                <PieChart margin={{ top: 0, right: 0, bottom: 20, left: 0 }}>
                                     <Pie
                                         data={pieData}
                                         cx="50%"
-                                        cy="40%"
-                                        innerRadius={40}
-                                        outerRadius={70}
-                                        paddingAngle={2}
+                                        cy="45%"
+                                        innerRadius={50}
+                                        outerRadius={75}
+                                        paddingAngle={3}
                                         dataKey="value"
-                                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                        labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                                     >
                                         {pieData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -317,8 +345,10 @@ const Dashboard = () => {
                                     />
                                     <Legend
                                         verticalAlign="bottom"
-                                        height={36}
-                                        formatter={(value) => <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem' }}>{value}</span>}
+                                        align="center"
+                                        iconSize={10}
+                                        iconType="circle"
+                                        formatter={(value) => <span style={{ color: 'var(--text-primary)', fontSize: '0.75rem' }}>{value}</span>}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>

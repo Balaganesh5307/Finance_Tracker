@@ -1,21 +1,15 @@
 import { FiArrowUp, FiArrowDown, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
 const TransactionItem = ({ transaction, onEdit, onDelete }) => {
+    const { formatCurrency } = useAuth();
+
     const formatDate = (date) => {
         return new Date(date).toLocaleDateString('en-IN', {
             day: 'numeric',
             month: 'short',
             year: 'numeric'
         });
-    };
-
-    const formatAmount = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2
-        }).format(amount);
     };
 
     return (
@@ -31,7 +25,7 @@ const TransactionItem = ({ transaction, onEdit, onDelete }) => {
             </div>
 
             <span className={`transaction-amount ${transaction.type}`}>
-                {transaction.type === 'income' ? '+' : '-'}{formatAmount(transaction.amount)}
+                {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
             </span>
 
             <div className="transaction-actions">

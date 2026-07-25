@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FiUser, FiMail, FiLock, FiUserPlus } from 'react-icons/fi';
+import { FiUserPlus } from 'react-icons/fi';
 
 const Register = () => {
     const [name, setName] = useState('');
@@ -11,7 +11,7 @@ const Register = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const { register } = useAuth();
+    const { register, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -39,6 +39,57 @@ const Register = () => {
             setLoading(false);
         }
     };
+
+    const handleGoogleCallback = async (response) => {
+        try {
+            setError('');
+            setLoading(true);
+            const data = await loginWithGoogle(response.credential);
+            if (data.user?.role === 'admin') {
+                navigate('/admin');
+            } else {
+                navigate('/dashboard');
+            }
+        } catch (err) {
+            console.error('Google Auth UI Error:', err);
+            setError(err.response?.data?.message || 'Google Sign-In failed.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        const renderGoogleButton = () => {
+            /* global google */
+            if (window.google) {
+                try {
+                    google.accounts.id.initialize({
+                        client_id: '902740568589-qaad58841ctllqdo5ku3rgkh1aq23leg.apps.googleusercontent.com',
+                        callback: handleGoogleCallback
+                    });
+                    google.accounts.id.renderButton(
+                        document.getElementById('google-btn-container'),
+                        { theme: 'outline', size: 'large', width: '340px' }
+                    );
+                    return true;
+                } catch (err) {
+                    console.error('Error rendering Google button:', err);
+                }
+            }
+            return false;
+        };
+
+        // Try to render immediately
+        if (!renderGoogleButton()) {
+            // Check every 100ms if not loaded yet
+            const interval = setInterval(() => {
+                if (renderGoogleButton()) {
+                    clearInterval(interval);
+                }
+            }, 100);
+            return () => clearInterval(interval);
+        }
+    }, []);
 
     return (
         <div className="auth-container">
@@ -109,7 +160,15 @@ const Register = () => {
                     </button>
                 </form>
 
-                <p className="auth-link">
+                <div className="auth-divider">
+                    <span>or</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%', minHeight: '40px' }}>
+                    <div id="google-btn-container"></div>
+                </div>
+
+                <p className="auth-link" style={{ marginTop: '1.5rem' }}>
                     Already have an account? <Link to="/login">Sign in</Link>
                 </p>
             </div>

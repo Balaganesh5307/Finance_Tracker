@@ -1,10 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode';
 import api from '../utils/api';
 
 const AuthContext = createContext(null);
-
-const ADMIN_EMAILS = ['admin5307@gmail.com'];
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -23,41 +20,17 @@ const getStoredUser = () => {
     }
 };
 
-const getRoleFromToken = (token) => {
-    try {
-        const decoded = jwtDecode(token);
-        return decoded.role || null;
-    } catch {
-        return null;
-    }
-};
-
-const determineRole = (email, tokenRole, apiRole) => {
-    if (ADMIN_EMAILS.includes(email?.toLowerCase())) {
-        return 'admin';
-    }
-    return apiRole || tokenRole || 'user';
-};
-
 export const AuthProvider = ({ children }) => {
     const storedToken = localStorage.getItem('token');
     const storedUser = getStoredUser();
 
-    const [user, setUser] = useState(() => {
-        if (storedUser) {
-            const role = determineRole(storedUser.email, null, storedUser.role);
-            return { ...storedUser, role };
-        }
-        return null;
-    });
+    const [user, setUser] = useState(storedUser);
     const [token, setToken] = useState(storedToken);
     const [loading, setLoading] = useState(!!storedToken && !storedUser);
 
     useEffect(() => {
         if (token && !user) {
             loadUser();
-        } else if (token && user) {
-            setLoading(false);
         } else {
             setLoading(false);
         }
@@ -66,13 +39,14 @@ export const AuthProvider = ({ children }) => {
     const loadUser = async () => {
         try {
             const res = await api.get('/api/auth/user');
-            const tokenRole = getRoleFromToken(token);
-            const role = determineRole(res.data.email, tokenRole, res.data.role);
             const userData = {
                 id: res.data.id || res.data._id,
                 name: res.data.name,
                 email: res.data.email,
-                role: role
+                role: res.data.role,
+                country: res.data.country || null,
+                currency: res.data.currency || 'INR',
+                avatar: res.data.avatar || 'avatar1'
             };
             setUser(userData);
             localStorage.setItem('user', JSON.stringify(userData));
@@ -90,14 +64,14 @@ export const AuthProvider = ({ children }) => {
         const res = await api.post('/api/auth/login', { email, password });
         const { token: newToken, user: userData } = res.data;
 
-        const tokenRole = getRoleFromToken(newToken);
-        const role = determineRole(userData.email || email, tokenRole, userData.role);
-
         const userWithRole = {
-            id: userData.id,
+            id: userData.id || userData._id,
             name: userData.name,
             email: userData.email || email,
-            role: role
+            role: userData.role || 'user',
+            country: userData.country || null,
+            currency: userData.currency || 'INR',
+            avatar: userData.avatar || 'avatar1'
         };
 
         localStorage.setItem('token', newToken);
@@ -106,7 +80,7 @@ export const AuthProvider = ({ children }) => {
         setToken(newToken);
         setUser(userWithRole);
 
-        return { ...res.data, user: userWithRole };
+        return res.data;
     };
 
     const register = async (name, email, password) => {
@@ -116,8 +90,15 @@ export const AuthProvider = ({ children }) => {
         const res = await api.post('/api/auth/register', { name, email, password });
         const { token: newToken, user: userData } = res.data;
 
-        const role = determineRole(userData.email || email, null, userData.role);
-        const userWithRole = { ...userData, role };
+        const userWithRole = {
+            id: userData.id || userData._id,
+            name: userData.name,
+            email: userData.email || email,
+            role: userData.role || 'user',
+            country: userData.country || null,
+            currency: userData.currency || 'INR',
+            avatar: userData.avatar || 'avatar1'
+        };
 
         localStorage.setItem('token', newToken);
         localStorage.setItem('user', JSON.stringify(userWithRole));
@@ -126,6 +107,72 @@ export const AuthProvider = ({ children }) => {
         setUser(userWithRole);
 
         return res.data;
+    };
+
+    const loginWithGoogle = async (credential) => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+
+        const res = await api.post('/api/auth/google-login', { credential });
+        const { token: newToken, user: userData } = res.data;
+
+        const userWithRole = {
+            id: userData.id || userData._id,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role || 'user',
+            country: userData.country || null,
+            currency: userData.currency || 'INR',
+            avatar: userData.avatar || 'avatar1'
+        };
+
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('user', JSON.stringify(userWithRole));
+
+        setToken(newToken);
+        setUser(userWithRole);
+
+        return res.data;
+    };
+
+    const updateProfile = async (profileData) => {
+        const res = await api.put('/api/auth/profile', profileData);
+        const { user: userData } = res.data;
+        const updatedUser = {
+            id: userData.id || userData._id,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            country: userData.country || null,
+            currency: userData.currency || 'INR',
+            avatar: userData.avatar || 'avatar1'
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        return updatedUser;
+    };
+
+    const formatCurrency = (amount) => {
+        const COUNTRY_CURRENCY_MAP = {
+            'India': { code: 'INR', locale: 'en-IN' },
+            'United States': { code: 'USD', locale: 'en-US' },
+            'United Kingdom': { code: 'GBP', locale: 'en-GB' },
+            'Europe': { code: 'EUR', locale: 'de-DE' },
+            'Japan': { code: 'JPY', locale: 'ja-JP' },
+            'Canada': { code: 'CAD', locale: 'en-CA' },
+            'Australia': { code: 'AUD', locale: 'en-AU' }
+        };
+
+        const code = user?.currency || 'INR';
+        const localeMap = Object.values(COUNTRY_CURRENCY_MAP).find(c => c.code === code);
+        const locale = localeMap ? localeMap.locale : 'en-IN';
+
+        return new Intl.NumberFormat(locale, {
+            style: 'currency',
+            currency: code,
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount || 0);
     };
 
     const logout = () => {
@@ -141,6 +188,9 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
+        loginWithGoogle,
+        updateProfile,
+        formatCurrency,
         logout,
         isAuthenticated: !!token && !!user
     };
