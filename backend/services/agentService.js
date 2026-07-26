@@ -113,6 +113,113 @@ const tools = [
     }
 ];
 
+// ─── ADMIN TOOLS (Mongoose Database & Settings Operations) ───
+
+const getAdminStats = async () => {
+    const User = require('../models/User');
+    const Transaction = require('../models/Transaction');
+    const Subscription = require('../models/Subscription');
+    const Budget = require('../models/Budget');
+    const SavingGoal = require('../models/SavingGoal');
+
+    const totalUsers = await User.countDocuments();
+    const totalTransactions = await Transaction.countDocuments();
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const activeUsers = await User.countDocuments({
+        lastLogin: { $gte: sevenDaysAgo }
+    });
+
+    const startOfMonth = new Date(new Date().setDate(1));
+    const newUsersThisMonth = await User.countDocuments({
+        createdAt: { $gte: startOfMonth }
+    });
+
+    const allVolume = await Transaction.aggregate([
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalPlatformVolume = allVolume.length > 0 ? allVolume[0].total : 0;
+
+    const dbHealth = {
+        users: totalUsers,
+        transactions: totalTransactions,
+        subscriptions: await Subscription.countDocuments(),
+        budgets: await Budget.countDocuments(),
+        goals: await SavingGoal.countDocuments()
+    };
+
+    return {
+        totalUsers,
+        totalTransactions,
+        activeUsers,
+        newUsersThisMonth,
+        totalPlatformVolume,
+        dbHealth
+    };
+};
+
+const getConfigs = async () => {
+    const Config = require('../models/Config');
+    const configs = await Config.find({});
+    return configs.map(c => {
+        let displayValue = c.value;
+        // Mask sensitive settings
+        if (c.key.includes('KEY') || c.key.includes('SECRET') || c.key.includes('PASSWORD')) {
+            if (c.value && c.value.length > 8) {
+                displayValue = c.value.substring(0, 6) + '...' + c.value.substring(c.value.length - 4);
+            } else if (c.value) {
+                displayValue = '********';
+            }
+        }
+        return {
+            key: c.key,
+            value: displayValue
+        };
+    });
+};
+
+const updateConfig = async (key, value) => {
+    const Config = require('../models/Config');
+    if (!key) {
+        return { success: false, message: 'Config key is required.' };
+    }
+    const config = await Config.findOneAndUpdate(
+        { key: key.trim() },
+        { $set: { value: value } },
+        { new: true, upsert: true }
+    );
+    return {
+        success: true,
+        key: config.key,
+        value: (key.includes('KEY') || key.includes('SECRET')) ? '********' : config.value
+    };
+};
+
+const testGroqKey = async (testKey) => {
+    if (!testKey) {
+        return { success: false, message: 'No Groq API key provided to test.' };
+    }
+    try {
+        const testGroq = new Groq({ apiKey: testKey });
+        const testRes = await testGroq.chat.completions.create({
+            model: 'llama-3.1-8b-instant',
+            messages: [{ role: 'user', content: 'Respond with only the word OK.' }],
+            max_tokens: 5
+        });
+        const content = testRes.choices[0].message.content.trim();
+        return {
+            success: true,
+            message: 'Groq API Key is valid and working.',
+            modelResponse: content
+        };
+    } catch (err) {
+        return {
+            success: false,
+            message: `Groq API Key validation failed: ${err.message}`
+        };
+    }
+};
+
 // ─── AGENT EXECUTION LOOP ───
 
 const runAgent = async (userId, userMessage, chatHistory = []) => {
@@ -122,6 +229,10 @@ const runAgent = async (userId, userMessage, chatHistory = []) => {
     if (!apiKey) {
         throw new Error('Groq API Key is not configured in settings or environment.');
     }
+
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    const isAdmin = user && user.role === 'admin';
 
     const groqClient = new Groq({ apiKey });
 
@@ -141,7 +252,14 @@ Here is the structure and features of this website (FinanceTracker Pro) to help 
 2. Dashboard ('/dashboard'): Displays financial cards (Monthly Income, Monthly Expense, Balance) and dynamic charts (spending breakdown pie charts and monthly transaction trends line charts) using Recharts.
 3. Transactions Page ('/transactions'): The ledger where users can view all transaction history, search by description, filter by type/category, edit, delete, or add transactions manually.
 4. Admin Panel ('/admin'): Restricted dashboard for overall administrators (such as admin5307@gmail.com and balaganesh.masterad@gmail.com) to view site users, manage accounts, and monitor metrics.
-5. AI Assistant: That's you! You can run database queries, query logs, add transactions via chat commands, and summarize budgets.`
+5. AI Assistant: That's you! You can run database queries, query logs, add transactions via chat commands, and summarize budgets.
+${isAdmin ? `
+ADMINISTRATIVE ROLE CONTEXT:
+You are chatting with a site administrator. You have additional tools:
+- getAdminStats: View total registered users, active users, platform volume, and DB diagnostics. Use this tool if the admin asks about user counts, db metrics, etc.
+- getConfigs: View configuration values (masked). Use this to check if API keys or broadcast banners are set.
+- updateConfig: Edit configurations (e.g. key: 'SYSTEM_BROADCAST_MESSAGE' to update or publish the live announcement banner). Use this to publish/update banner messages.
+- testGroqKey: Validate if the Groq API key works.` : ''}`
         },
         ...chatHistory.map(msg => ({
             role: msg.sender === 'user' ? 'user' : 'assistant',
@@ -150,6 +268,57 @@ Here is the structure and features of this website (FinanceTracker Pro) to help 
         { role: 'user', content: userMessage }
     ];
 
+    // Build tools dynamically
+    const activeTools = [...tools];
+    if (isAdmin) {
+        activeTools.push(
+            {
+                type: 'function',
+                function: {
+                    name: 'getAdminStats',
+                    description: 'Retrieve platform-wide administrative statistics including total user count, active users count, database diagnostics, and general metrics.',
+                    parameters: { type: 'object', properties: {} }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'getConfigs',
+                    description: 'Retrieve system configurations including keys and masked values. Useful for checking if API keys or settings are configured.',
+                    parameters: { type: 'object', properties: {} }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'updateConfig',
+                    description: 'Update or set a system configuration value (like SYSTEM_BROADCAST_MESSAGE for announcement banners, or API keys).',
+                    parameters: {
+                        type: 'object',
+                        required: ['key', 'value'],
+                        properties: {
+                            key: { type: 'string', description: 'The configuration key (e.g. SYSTEM_BROADCAST_MESSAGE, GROQ_API_KEY, GEMINI_API_KEY).' },
+                            value: { type: 'string', description: 'The new value to store.' }
+                        }
+                    }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'testGroqKey',
+                    description: 'Test if the saved or a provided Groq API key is valid and working.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            apiKey: { type: 'string', description: 'Optional Groq API key to test. If not provided, tests the currently saved one.' }
+                        }
+                    }
+                }
+            }
+        );
+    }
+
     let loopLimit = 5;
     while (loopLimit > 0) {
         loopLimit--;
@@ -157,7 +326,7 @@ Here is the structure and features of this website (FinanceTracker Pro) to help 
         const response = await groqClient.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             messages: formattedMessages,
-            tools: tools,
+            tools: activeTools,
             tool_choice: 'auto',
             temperature: 0.2
         });
@@ -175,13 +344,21 @@ Here is the structure and features of this website (FinanceTracker Pro) to help 
                 let observation;
                 try {
                     if (name === 'getTransactions') {
-                        observation = await getTransactions(userId, args.limit, args.category, args.type);
+                        observation = await getTransactions(userId, args?.limit, args?.category, args?.type);
                     } else if (name === 'createTransaction') {
-                        observation = await createTransaction(userId, args.amount, args.type, args.category, args.description, args.date);
+                        observation = await createTransaction(userId, args?.amount, args?.type, args?.category, args?.description, args?.date);
                     } else if (name === 'getSummary') {
                         observation = await getSummary(userId);
+                    } else if (name === 'getAdminStats' && isAdmin) {
+                        observation = await getAdminStats();
+                    } else if (name === 'getConfigs' && isAdmin) {
+                        observation = await getConfigs();
+                    } else if (name === 'updateConfig' && isAdmin) {
+                        observation = await updateConfig(args?.key, args?.value);
+                    } else if (name === 'testGroqKey' && isAdmin) {
+                        observation = await testGroqKey(args?.apiKey || apiKey);
                     } else {
-                        observation = { error: `Tool ${name} not found.` };
+                        observation = { error: `Tool ${name} not found or permission denied.` };
                     }
                 } catch (err) {
                     console.error(`Error running tool ${name}:`, err);

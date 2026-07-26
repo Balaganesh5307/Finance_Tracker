@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import Navbar from './components/Navbar';
@@ -58,12 +58,17 @@ function App() {
                             <Route path="/" element={<Home />} />
                         </Routes>
                     </main>
-                    <AIChatWidget />
+                    <ChatWidgetWithKey />
                     <CountrySelectModal />
                 </div>
             </Router>
         </AuthProvider>
     );
 }
+
+const ChatWidgetWithKey = () => {
+    const { user } = useAuth();
+    return <AIChatWidget key={user?.id || 'guest'} />;
+};
 
 export default App;

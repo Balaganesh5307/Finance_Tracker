@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiMessageSquare, FiX, FiSend, FiCpu, FiTrendingUp, FiPlus } from 'react-icons/fi';
+import { FiMessageSquare, FiX, FiSend, FiCpu, FiTrendingUp, FiPlus, FiClock } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const AIChatWidget = () => {
@@ -13,6 +13,28 @@ const AIChatWidget = () => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef(null);
+
+    const fetchChatHistory = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/api/ai/history');
+            if (res.data && res.data.length > 0) {
+                const formatted = res.data.map(msg => ({
+                    sender: msg.sender,
+                    text: msg.text
+                }));
+                setMessages(formatted);
+                toast.success('Chat history loaded successfully!');
+            } else {
+                toast.info('No previous chat history found.');
+            }
+        } catch (err) {
+            console.error('Failed to load chat history:', err);
+            toast.error('Failed to load chat history.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,18 +166,45 @@ const AIChatWidget = () => {
                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Powered by Groq & Gemini</span>
                             </div>
                         </div>
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                fontSize: '18px',
-                            }}
-                        >
-                            <FiX />
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <button
+                                onClick={fetchChatHistory}
+                                title="View Previous Chats"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'color 0.2s',
+                                    padding: '4px',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                            >
+                                <FiClock />
+                            </button>
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'color 0.2s',
+                                    padding: '4px',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                            >
+                                <FiX />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Messages Body */}
