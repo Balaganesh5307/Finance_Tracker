@@ -319,67 +319,95 @@ You are chatting with a site administrator. You have additional tools:
         );
     }
 
-    let loopLimit = 5;
-    while (loopLimit > 0) {
-        loopLimit--;
-        console.log(`[Agent Service] Calling Groq API with ${formattedMessages.length} messages...`);
-        const response = await groqClient.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
-            messages: formattedMessages,
-            tools: activeTools,
-            tool_choice: 'auto',
-            temperature: 0.2
-        });
+    let accumulatedPromptTokens = 0;
+    let accumulatedCompletionTokens = 0;
 
-        const responseMessage = response.choices[0].message;
-        formattedMessages.push(responseMessage);
+    try {
+        let loopLimit = 5;
+        while (loopLimit > 0) {
+            loopLimit--;
+            console.log(`[Agent Service] Calling Groq API with ${formattedMessages.length} messages...`);
+            const response = await groqClient.chat.completions.create({
+                model: 'llama-3.3-70b-versatile',
+                messages: formattedMessages,
+                tools: activeTools,
+                tool_choice: 'auto',
+                temperature: 0.2
+            });
 
-        // Check if LLM requested a tool execution
-        if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-            for (const toolCall of responseMessage.tool_calls) {
-                const { name, arguments: argsString } = toolCall.function;
-                const args = JSON.parse(argsString);
-                console.log(`[Agent Service] Tool Call Requested: ${name} with arguments:`, args);
-
-                let observation;
-                try {
-                    if (name === 'getTransactions') {
-                        observation = await getTransactions(userId, args?.limit, args?.category, args?.type);
-                    } else if (name === 'createTransaction') {
-                        observation = await createTransaction(userId, args?.amount, args?.type, args?.category, args?.description, args?.date);
-                    } else if (name === 'getSummary') {
-                        observation = await getSummary(userId);
-                    } else if (name === 'getAdminStats' && isAdmin) {
-                        observation = await getAdminStats();
-                    } else if (name === 'getConfigs' && isAdmin) {
-                        observation = await getConfigs();
-                    } else if (name === 'updateConfig' && isAdmin) {
-                        observation = await updateConfig(args?.key, args?.value);
-                    } else if (name === 'testGroqKey' && isAdmin) {
-                        observation = await testGroqKey(args?.apiKey || apiKey);
-                    } else {
-                        observation = { error: `Tool ${name} not found or permission denied.` };
-                    }
-                } catch (err) {
-                    console.error(`Error running tool ${name}:`, err);
-                    observation = { error: err.message || 'Tool execution failed' };
-                }
-
-                console.log(`[Agent Service] Observation from ${name}:`, observation);
-                formattedMessages.push({
-                    role: 'tool',
-                    tool_call_id: toolCall.id,
-                    name: name,
-                    content: JSON.stringify(observation)
-                });
+            if (response.usage) {
+                accumulatedPromptTokens += response.usage.prompt_tokens || 0;
+                accumulatedCompletionTokens += response.usage.completion_tokens || 0;
             }
-        } else {
-            // No tool calls, return assistant text response
-            return responseMessage.content;
+
+            const responseMessage = response.choices[0].message;
+            formattedMessages.push(responseMessage);
+
+            // Check if LLM requested a tool execution
+            if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+                for (const toolCall of responseMessage.tool_calls) {
+                    const { name, arguments: argsString } = toolCall.function;
+                    const args = JSON.parse(argsString);
+                    console.log(`[Agent Service] Tool Call Requested: ${name} with arguments:`, args);
+
+                    let observation;
+                    try {
+                        if (name === 'getTransactions') {
+                            observation = await getTransactions(userId, args?.limit, args?.category, args?.type);
+                        } else if (name === 'createTransaction') {
+                            observation = await createTransaction(userId, args?.amount, args?.type, args?.category, args?.description, args?.date);
+                        } else if (name === 'getSummary') {
+                            observation = await getSummary(userId);
+                        } else if (name === 'getAdminStats' && isAdmin) {
+                            observation = await getAdminStats();
+                        } else if (name === 'getConfigs' && isAdmin) {
+                            observation = await getConfigs();
+                        } else if (name === 'updateConfig' && isAdmin) {
+                            observation = await updateConfig(args?.key, args?.value);
+                        } else if (name === 'testGroqKey' && isAdmin) {
+                            observation = await testGroqKey(args?.apiKey || apiKey);
+                        } else {
+                            observation = { error: `Tool ${name} not found or permission denied.` };
+                        }
+                    } catch (err) {
+                        console.error(`Error running tool ${name}:`, err);
+                        observation = { error: err.message || 'Tool execution failed' };
+                    }
+
+                    console.log(`[Agent Service] Observation from ${name}:`, observation);
+                    formattedMessages.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        name: name,
+                        content: JSON.stringify(observation)
+                    });
+                }
+            } else {
+                // No tool calls, return assistant text response
+                return responseMessage.content;
+            }
+        }
+
+        throw new Error('Agent execution loop limit exceeded.');
+    } finally {
+        if (accumulatedPromptTokens > 0 || accumulatedCompletionTokens > 0) {
+            try {
+                const AIUsageLog = require('../models/AIUsageLog');
+                await AIUsageLog.create({
+                    user: userId,
+                    apiType: 'groq',
+                    modelName: 'llama-3.3-70b-versatile',
+                    action: 'chatbot',
+                    promptTokens: accumulatedPromptTokens,
+                    completionTokens: accumulatedCompletionTokens,
+                    totalTokens: accumulatedPromptTokens + accumulatedCompletionTokens
+                });
+                console.log(`[Agent Service] Saved AI Usage Log: ${accumulatedPromptTokens + accumulatedCompletionTokens} total tokens`);
+            } catch (logErr) {
+                console.error('[Agent Service] Failed to save AI usage log:', logErr.message);
+            }
         }
     }
-
-    throw new Error('Agent execution loop limit exceeded.');
 };
 
 module.exports = { runAgent };

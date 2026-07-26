@@ -201,4 +201,149 @@ router.delete('/users/:id', auth, adminAuth, async (req, res) => {
     }
 });
 
+// GET /api/admin/ai-usage
+router.get('/ai-usage', auth, adminAuth, async (req, res) => {
+    try {
+        const AIUsageLog = require('../models/AIUsageLog');
+
+        // Monthly total usage stats
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0,0,0,0);
+
+        const currentMonthUsage = await AIUsageLog.aggregate([
+            { $match: { createdAt: { $gte: startOfMonth } } },
+            {
+                $group: {
+                    _id: '$apiType',
+                    totalTokens: { $sum: '$totalTokens' },
+                    promptTokens: { $sum: '$promptTokens' },
+                    completionTokens: { $sum: '$completionTokens' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const totalUsage = await AIUsageLog.aggregate([
+            {
+                $group: {
+                    _id: '$apiType',
+                    totalTokens: { $sum: '$totalTokens' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // System configuration limits
+        const GROQ_LIMIT = 1000000;
+        const GEMINI_LIMIT = 500000;
+
+        const monthlyStats = {
+            groq: { used: 0, limit: GROQ_LIMIT, left: GROQ_LIMIT, count: 0 },
+            gemini: { used: 0, limit: GEMINI_LIMIT, left: GEMINI_LIMIT, count: 0 }
+        };
+
+        currentMonthUsage.forEach(usage => {
+            if (monthlyStats[usage._id]) {
+                monthlyStats[usage._id].used = usage.totalTokens;
+                monthlyStats[usage._id].count = usage.count;
+                monthlyStats[usage._id].left = Math.max(0, monthlyStats[usage._id].limit - usage.totalTokens);
+            }
+        });
+
+        // 15 days daily trend for charts
+        const fifteenDaysAgo = new Date();
+        fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+        fifteenDaysAgo.setHours(0,0,0,0);
+
+        const dailyTrends = await AIUsageLog.aggregate([
+            { $match: { createdAt: { $gte: fifteenDaysAgo } } },
+            {
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                        apiType: "$apiType"
+                    },
+                    tokens: { $sum: "$totalTokens" }
+                }
+            },
+            { $sort: { "_id.date": 1 } }
+        ]);
+
+        // Format dailyTrends into Recharts friendly structure: [{ date: '2026-07-26', groq: 1200, gemini: 800 }]
+        const trendMap = {};
+        dailyTrends.forEach(item => {
+            const date = item._id.date;
+            const apiType = item._id.apiType;
+            if (!trendMap[date]) {
+                trendMap[date] = { date, groq: 0, gemini: 0 };
+            }
+            trendMap[date][apiType] = item.tokens;
+        });
+        const chartData = Object.values(trendMap);
+
+        // Fetch detailed logs (recent 50)
+        const logs = await AIUsageLog.find({})
+            .populate('user', 'name email')
+            .sort({ createdAt: -1 })
+            .limit(50);
+
+        res.json({
+            monthlyStats,
+            totalUsage,
+            chartData,
+            logs
+        });
+    } catch (err) {
+        console.error('Fetch AI Usage Stats Error:', err.message);
+        res.status(500).json({ message: 'Server error fetching AI usage stats.' });
+    }
+});
+
+// POST /api/admin/configs/test - Validate a key in settings
+router.post('/configs/test', auth, adminAuth, async (req, res) => {
+    const { key, value } = req.body;
+    if (!key) {
+        return res.status(400).json({ message: 'Key is required to test.' });
+    }
+
+    let testValue = value;
+    if (!testValue) {
+        const Config = require('../models/Config');
+        const configObj = await Config.findOne({ key: key.trim() });
+        testValue = configObj ? configObj.value : process.env[key];
+    }
+
+    if (!testValue) {
+        return res.status(400).json({ message: `API Key '${key}' is not configured.` });
+    }
+
+    try {
+        if (key === 'GROQ_API_KEY') {
+            const Groq = require('groq-sdk');
+            const groqClient = new Groq({ apiKey: testValue });
+            await groqClient.chat.completions.create({
+                model: 'llama-3.1-8b-instant',
+                messages: [{ role: 'user', content: 'Respond with OK.' }],
+                max_tokens: 3
+            });
+            return res.json({ success: true, message: 'Groq API Key is valid and working.' });
+        } else if (key === 'GEMINI_API_KEY') {
+            const { GoogleGenerativeAI } = require('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(testValue);
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            await model.generateContent("Respond with OK.");
+            return res.json({ success: true, message: 'Gemini API Key is valid and working.' });
+        } else {
+            return res.status(400).json({ message: 'Unsupported key validation.' });
+        }
+    } catch (err) {
+        console.error(`Key test error for ${key}:`, err.message);
+        return res.status(400).json({
+            success: false,
+            message: `Key validation failed: ${err.message}`
+        });
+    }
+});
+
 module.exports = router;

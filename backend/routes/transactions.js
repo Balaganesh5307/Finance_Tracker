@@ -116,6 +116,25 @@ Schema:
 }`;
 
         const result = await model.generateContent([imagePart, prompt]);
+
+        // Log Gemini API usage metrics
+        try {
+            const usage = result.response.usageMetadata || {};
+            const AIUsageLog = require('../models/AIUsageLog');
+            await AIUsageLog.create({
+                user: req.user.id,
+                apiType: 'gemini',
+                modelName: 'gemini-1.5-flash',
+                action: 'receipt_scan',
+                promptTokens: usage.promptTokenCount || 0,
+                completionTokens: usage.candidatesTokenCount || 0,
+                totalTokens: usage.totalTokenCount || 0
+            });
+            console.log(`[Receipt Scanner] Logged Gemini usage: ${usage.totalTokenCount || 0} tokens.`);
+        } catch (logErr) {
+            console.error('[Receipt Scanner] Failed to log Gemini usage:', logErr.message);
+        }
+
         let textResponse = result.response.text().trim();
         console.log('[Receipt Scanner] Gemini parsed raw text:', textResponse);
 
