@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import api from '../utils/api';
-import { FiUploadCloud, FiRefreshCw, FiCheck } from 'react-icons/fi';
+import { FiUploadCloud, FiRefreshCw, FiCheck, FiCamera } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const ReceiptScanner = ({ onScanComplete }) => {
@@ -118,17 +118,29 @@ const ReceiptScanner = ({ onScanComplete }) => {
                         </div>
                     </div>
                 ) : (
-                    <label style={{ cursor: 'pointer', display: 'block' }}>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleFileChange(e.target.files[0])}
-                            style={{ display: 'none' }}
-                        />
-                        <FiUploadCloud style={{ fontSize: '32px', color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                        <p style={{ fontSize: '0.8rem', margin: '0 0 4px 0' }}>Drag & drop or Click to Upload</p>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Supports JPG, JPEG, PNG</span>
-                    </label>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                        <label className="btn" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem', flex: 1, border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-card)' }}>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleFileChange(e.target.files[0])}
+                                style={{ display: 'none' }}
+                            />
+                            <FiUploadCloud style={{ fontSize: '28px', color: 'var(--accent-blue)', marginBottom: '0.5rem' }} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Upload Photo</span>
+                        </label>
+                        <label className="btn" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '1.25rem 1rem', flex: 1, border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-card)' }}>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => handleFileChange(e.target.files[0])}
+                                style={{ display: 'none' }}
+                            />
+                            <FiCamera style={{ fontSize: '28px', color: 'var(--accent-green)', marginBottom: '0.5rem' }} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Take Photo</span>
+                        </label>
+                    </div>
                 )}
             </div>
         </div>
