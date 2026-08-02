@@ -138,16 +138,27 @@ Schema:
         let textResponse = result.response.text().trim();
         console.log('[Receipt Scanner] Gemini parsed raw text:', textResponse);
 
-        // Sanitize markdown wrapping
-        if (textResponse.startsWith('```')) {
-            textResponse = textResponse.replace(/^```json\s*/, '').replace(/```$/, '');
+        // Sanitize markdown wrapping robustly
+        let cleanText = textResponse;
+        if (cleanText.includes('```')) {
+            const match = cleanText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            if (match) {
+                cleanText = match[1];
+            } else {
+                cleanText = cleanText.replace(/```(?:json)?/g, '').replace(/```/g, '').trim();
+            }
         }
 
-        const parsedData = JSON.parse(textResponse);
-        res.json(parsedData);
+        try {
+            const parsedData = JSON.parse(cleanText);
+            res.json(parsedData);
+        } catch (parseErr) {
+            console.error('Receipt Scan JSON Parse Error:', parseErr, 'Raw Text:', cleanText);
+            res.status(500).json({ message: 'Failed to parse AI response. Ensure the image is a valid receipt.' });
+        }
     } catch (err) {
         console.error('Receipt Scan Error:', err);
-        res.status(500).json({ message: 'Failed to scan receipt image correctly.' });
+        res.status(500).json({ message: err.message || 'Failed to scan receipt image correctly.' });
     }
 });
 
