@@ -1856,3 +1856,27 @@ body {
 .btn-google svg {
   font-size: 1.35rem;
 }
+
+/* ==========================================
+   RECHARTS TOOLTIP & DATE PICKER FIXES
+   ========================================== */
+
+/* Fix tooltip text color in dark mode */
+.dark .recharts-tooltip-item {
+  color: #f8fafc !important;
+}
+.dark .recharts-default-tooltip {
+  color: #f8fafc !important;
+}
+
+.dark .recharts-tooltip-item-name, 
+.dark .recharts-tooltip-item-value, 
+.dark .recharts-tooltip-item-separator {
+  color: #f8fafc !important;
+}
+
+/* Fix missing calendar icon on date inputs in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

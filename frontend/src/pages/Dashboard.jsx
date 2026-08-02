@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
@@ -140,98 +140,116 @@ const Dashboard = () => {
         }
     };
 
-    const now = new Date();
-    const currentMonthTransactions = transactions.filter(t => {
-        const tDate = new Date(t.date || t.createdAt);
-        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
-    });
-
-    const totalIncome = currentMonthTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalExpense = currentMonthTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-    const balance = totalIncome - totalExpense;
-
-    const expenseByCategory = currentMonthTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((acc, t) => {
-            acc[t.category] = (acc[t.category] || 0) + t.amount;
-            return acc;
-        }, {});
-
-    const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({
-        name,
-        value
-    }));
-
-    const barData = [
-        { name: 'Income', amount: totalIncome, fill: '#10b981' },
-        { name: 'Expenses', amount: totalExpense, fill: '#ef4444' }
-    ];
-
-    const getBalanceTrendData = () => {
+    const {
+        totalIncome,
+        totalExpense,
+        balance,
+        pieData,
+        barData,
+        trendData,
+        monthlyChange,
+        recentTransactions
+    } = useMemo(() => {
         const now = new Date();
-        const months = [];
-        for (let i = 5; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            months.push({
-                month: date.toLocaleDateString('en-US', { month: 'short' }),
-                year: date.getFullYear(),
-                monthNum: date.getMonth(),
-            });
-        }
-
-        return months.map(m => {
-            const monthTransactions = transactions.filter(t => {
-                const tDate = new Date(t.date || t.createdAt);
-                return tDate.getMonth() === m.monthNum && tDate.getFullYear() === m.year;
-            });
-
-            const income = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-
-            return {
-                name: m.month,
-                income,
-                expense,
-                balance: income - expense
-            };
+        const currentMonthTransactions = transactions.filter(t => {
+            const tDate = new Date(t.date || t.createdAt);
+            return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
         });
-    };
 
-    const trendData = getBalanceTrendData();
+        const totalIncome = currentMonthTransactions
+            .filter(t => t.type === 'income')
+            .reduce((sum, t) => sum + t.amount, 0);
 
-    const getMonthlyComparison = () => {
-        const now = new Date();
-        const thisMonth = now.getMonth();
-        const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-        const thisYear = now.getFullYear();
-        const lastYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+        const totalExpense = currentMonthTransactions
+            .filter(t => t.type === 'expense')
+            .reduce((sum, t) => sum + t.amount, 0);
 
-        const thisMonthExpenses = transactions.filter(t => {
-            const tDate = new Date(t.date || t.createdAt);
-            return t.type === 'expense' && tDate.getMonth() === thisMonth && tDate.getFullYear() === thisYear;
-        }).reduce((sum, t) => sum + t.amount, 0);
+        const balance = totalIncome - totalExpense;
 
-        const lastMonthExpenses = transactions.filter(t => {
-            const tDate = new Date(t.date || t.createdAt);
-            return t.type === 'expense' && tDate.getMonth() === lastMonth && tDate.getFullYear() === lastYear;
-        }).reduce((sum, t) => sum + t.amount, 0);
+        const expenseByCategory = currentMonthTransactions
+            .filter(t => t.type === 'expense')
+            .reduce((acc, t) => {
+                acc[t.category] = (acc[t.category] || 0) + t.amount;
+                return acc;
+            }, {});
 
-        if (lastMonthExpenses === 0) return null;
-        const change = ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100;
-        return change;
-    };
+        const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({
+            name,
+            value
+        }));
 
-    const monthlyChange = getMonthlyComparison();
+        const barData = [
+            { name: 'Income', amount: totalIncome, fill: '#10b981' },
+            { name: 'Expenses', amount: totalExpense, fill: '#ef4444' }
+        ];
 
+        const getBalanceTrendData = () => {
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({
+                    month: date.toLocaleDateString('en-US', { month: 'short' }),
+                    year: date.getFullYear(),
+                    monthNum: date.getMonth(),
+                });
+            }
 
+            return months.map(m => {
+                const monthTransactions = transactions.filter(t => {
+                    const tDate = new Date(t.date || t.createdAt);
+                    return tDate.getMonth() === m.monthNum && tDate.getFullYear() === m.year;
+                });
 
-    const recentTransactions = transactions.slice(0, 5);
+                const income = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                const expense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+                return {
+                    name: m.month,
+                    income,
+                    expense,
+                    balance: income - expense
+                };
+            });
+        };
+
+        const trendData = getBalanceTrendData();
+
+        const getMonthlyComparison = () => {
+            const thisMonth = now.getMonth();
+            const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+            const thisYear = now.getFullYear();
+            const lastYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+            const thisMonthExpenses = transactions.filter(t => {
+                const tDate = new Date(t.date || t.createdAt);
+                return t.type === 'expense' && tDate.getMonth() === thisMonth && tDate.getFullYear() === thisYear;
+            }).reduce((sum, t) => sum + t.amount, 0);
+
+            const lastMonthExpenses = transactions.filter(t => {
+                const tDate = new Date(t.date || t.createdAt);
+                return t.type === 'expense' && tDate.getMonth() === lastMonth && tDate.getFullYear() === lastYear;
+            }).reduce((sum, t) => sum + t.amount, 0);
+
+            if (lastMonthExpenses === 0) return null;
+            const change = ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100;
+            return change;
+        };
+
+        const monthlyChange = getMonthlyComparison();
+
+        const recentTransactions = transactions.slice(0, 5);
+
+        return {
+            totalIncome,
+            totalExpense,
+            balance,
+            pieData,
+            barData,
+            trendData,
+            monthlyChange,
+            recentTransactions
+        };
+    }, [transactions]);
 
     const containerVariants = {
         hidden: { opacity: 0 },
